@@ -1,0 +1,29 @@
+# --- Go 编译产物 ---
+# 忽略编译生成的二进制文件 (Windows 下是 .exe)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# 忽略我们可能创建的 bin 目录
+bin/
+
+# --- 配置文件与密钥 (绝对不能上传！！！) ---
+# 忽略所有 .env 开头的文件 (如 .env, .env.dev, .env.prod)
+.env
+.env.*
+
+# 但是！保留示例文件，方便队友知道要填什么
+!env.example
+
+# --- IDE 与编辑器配置 ---
+# VS Code 目录 (如果你不想上传你的编辑器设置)
+.vscode/
+# JetBrains (GoLand) 目录
+.idea/
+
+# --- 操作系统文件 ---
+.DS_Store
+Thumbs.db
