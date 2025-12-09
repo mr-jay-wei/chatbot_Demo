@@ -15,6 +15,7 @@ type Config struct {
 	AIBaseURL string
 	AIKey     string
 	AIModel   string
+	MongoURI  string
 }
 
 func LoadConfig() *Config {
@@ -39,6 +40,7 @@ func LoadConfig() *Config {
 		AIKey:     getEnv("AI_API_KEY", ""),
 		AIModel:   getEnv("AI_MODEL", "gpt-3.5-turbo"),
 		LogLevel:  getEnv("LOG_LEVEL", "info"),
+		MongoURI:  getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 	}
 }
 

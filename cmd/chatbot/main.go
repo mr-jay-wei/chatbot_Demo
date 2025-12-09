@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,33 +12,65 @@ import (
 
 	"chatbot/internal/config"
 	"chatbot/internal/handler"
+	"chatbot/internal/repository" // 引入 repository
 	"chatbot/internal/service"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-	// 1. 先加载配置 (Config First)
-	// 注意：此时还没有配置好的 Logger，所以 LoadConfig 内部只能用默认 Logger
+	// 1. 加载配置
 	cfg := config.LoadConfig()
-
-	// 2. 初始化日志系统 (Logger Setup)
 	setupLogger(cfg.LogLevel, cfg.Env)
 
-	// 3. 初始化服务
-	if cfg.AIKey == "" {
-		slog.Warn("AI_API_KEY is not set. Chatbot might not work correctly.")
+	// 2. 连接 MongoDB (新增步骤)
+	slog.Info("Connecting to MongoDB...")
+	// 设置连接超时 10 秒
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 连接数据库
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoURI))
+	if err != nil {
+		slog.Error("Failed to create MongoDB client", "error", err)
+		os.Exit(1)
 	}
 
-	slog.Info("Initializing Service", "env", cfg.Env, "log_level", cfg.LogLevel)
+	// 检查连接是否成功 (Ping)
+	if err := client.Ping(ctx, nil); err != nil {
+		slog.Error("Failed to ping MongoDB", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Connected to MongoDB successfully")
 
-	// 使用 AI 服务
-	chatSvc := service.NewAIService(cfg)
+	// 程序退出时断开数据库连接
+	defer func() {
+		if err := client.Disconnect(context.Background()); err != nil {
+			slog.Error("Failed to disconnect MongoDB", "error", err)
+		}
+	}()
+
+	// 获取数据库实例 (数据库名 libraryDB 来自你的连接串)
+	db := client.Database("libraryDB")
+
+	// 3. 初始化层级依赖
+	// Layer 1: Repository (数据层)
+	chatRepo := repository.NewMongoChatRepo(db)
+
+	// Layer 2: Service (业务层) - 注入 Repo
+	if cfg.AIKey == "" {
+		slog.Warn("AI_API_KEY is not set.")
+	}
+	chatSvc := service.NewAIService(cfg, chatRepo)
+
+	// Layer 3: Handler (接口层)
 	chatHdl := handler.NewChatHandler(chatSvc)
 
-	// 4. 配置路由
+	// 4. 配置路由与服务器
 	mux := http.NewServeMux()
 	mux.HandleFunc("/chat", chatHdl.HandleChat)
 
-	// 5. 启动服务器
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      mux,
